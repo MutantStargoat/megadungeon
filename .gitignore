@@ -1,0 +1,5 @@
+*.swp
+*.o
+*.d
+*.png
+tools/viewproc/viewproc
