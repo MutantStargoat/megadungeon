@@ -9,6 +9,13 @@
 #include "darray.h"
 #include "imgproc.h"
 
+struct view {
+	int cx, cy;
+	int dir;
+	struct img_pixmap img;
+	int xoffs, yoffs;
+};
+
 int proc_args(int argc, char **argv);
 
 char *pathpat;
@@ -17,15 +24,15 @@ int width, height;
 int maxcolors = 16;
 int tilesz = 8;
 
-struct img_pixmap *imglist;
+struct view *viewlist;
 
 int main(int argc, char **argv)
 {
-	int i, xsz, ysz, num;
+	int i, xsz, ysz, num, asz;
 	glob_t gbuf;
-	static char outfile[PATH_MAX * 2];
 	char *basename;
 	struct img_pixmap *img, atlas;
+	struct view *view;
 	unsigned char *dest;
 
 	if(proc_args(argc, argv) == -1) {
@@ -54,7 +61,7 @@ int main(int argc, char **argv)
 		}
 	}
 
-	imglist = darr_alloc(0, sizeof *imglist);
+	viewlist = darr_alloc(0, sizeof *viewlist);
 
 	for(i=0; i<num; i++) {
 		if((basename = strrchr(gbuf.gl_pathv[i], '/'))) {
@@ -63,8 +70,9 @@ int main(int argc, char **argv)
 			basename = gbuf.gl_pathv[i];
 		}
 
-		darr_push(imglist, 0);
-		img = imglist + darr_size(imglist) - 1;
+		darr_push(viewlist, 0);
+		view = viewlist + darr_size(viewlist) - 1;
+		img = &view->img;
 
 		img_init(img);
 		if(img_load(img, gbuf.gl_pathv[i]) == -1) {
@@ -82,29 +90,24 @@ int main(int argc, char **argv)
 
 		img_halfsize24(img);
 		img_halfsize24(img);
-
-		if(outdir) {
-			sprintf(outfile, "%s/%s", outdir, basename);
-		} else {
-			strcpy(outfile, basename);
-		}
-		if(img_save(img, outfile) == -1) {
-			fprintf(stderr, "failed to save file %s\n", outfile);
-		}
 	}
 	globfree(&gbuf);
 
 	xsz >>= 2;
 	ysz >>= 2;
 
+	awidth = sqrt(xsz > ysz ? xsz : ysz);
+	aheight = (num * xsz * 2 - 1) / awidth;
+
 	img_init(&atlas);
-	img_set_pixels(&atlas, xsz, ysz * num, IMG_FMT_RGB24, 0);
+	img_set_pixels(&atlas, awidth, aheight, IMG_FMT_RGB24, 0);
 
 	dest = atlas.pixels;
-	img = imglist;
+	view = viewlist;
+	view->xoffs = view->yoffs = 0;
 	for(i=0; i<num; i++) {
-		memcpy(dest, img->pixels, xsz * ysz * 3);
-		img++;
+		memcpy(dest, view->img.pixels, xsz * ysz * 3);
+		view++;
 		dest += xsz * ysz * 3;
 	}
 
